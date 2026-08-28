@@ -7,7 +7,17 @@ import type { Category } from "./assessment.functions";
 const categorySchema = z.enum(CATEGORIES);
 const letterSchema = z.enum(["A", "B", "C", "D"]);
 
-async function assertAdmin(context: { supabase: SupabaseLike; userId: string }) {
+type AdminContext = {
+  supabase: {
+    rpc: (
+      fn: "has_role",
+      args: { _user_id: string; _role: "admin" },
+    ) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+  };
+  userId: string;
+};
+
+async function assertAdmin(context: AdminContext) {
   const { data, error } = await context.supabase.rpc("has_role", {
     _user_id: context.userId,
     _role: "admin",
@@ -15,13 +25,6 @@ async function assertAdmin(context: { supabase: SupabaseLike; userId: string }) 
   if (error) throw new Error(error.message);
   if (!data) throw new Error("Forbidden: administrator access required.");
 }
-
-type SupabaseLike = {
-  rpc: (
-    fn: "has_role",
-    args: { _user_id: string; _role: "admin" },
-  ) => Promise<{ data: boolean | null; error: { message: string } | null }>;
-};
 
 export const checkIsAdmin = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
