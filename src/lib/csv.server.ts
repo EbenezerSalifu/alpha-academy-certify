@@ -58,13 +58,18 @@ export function parseQuestionCsv(csv: string): { valid: ParsedQuestion[]; errors
   const valid: ParsedQuestion[] = [];
   if (rows.length === 0) return { valid, errors: ["The file is empty."] };
 
-  const header = rows[0].map((c) => c.trim().toLowerCase());
+  const firstRow = rows[0];
+  if (!firstRow) return { valid, errors: ["The file is empty."] };
+
+  const header = firstRow.map((c) => c.trim().toLowerCase());
   const hasHeader = header[0] === "category";
   const dataRows = hasHeader ? rows.slice(1) : rows;
 
   dataRows.forEach((cells, index) => {
     const lineNumber = index + (hasHeader ? 2 : 1);
-    const [category, question, a, b, c, d, correct] = cells.map((cell) => (cell ?? "").trim());
+    const [category = "", question = "", a = "", b = "", c = "", d = "", correct = ""] = cells.map(
+      (cell) => (cell ?? "").trim(),
+    );
     const normalisedCategory = category.toUpperCase();
     const answer = correct.toUpperCase();
 
