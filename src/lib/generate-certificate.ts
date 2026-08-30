@@ -2,7 +2,6 @@ import jsPDF from "jspdf";
 import { format } from "date-fns";
 import type { Category } from "./assessment.functions";
 
-// Helper to load the image file as data so jsPDF can use it
 const loadImage = async (url: string): Promise<string> => {
   const response = await fetch(url);
   const blob = await response.blob();
@@ -14,7 +13,6 @@ const loadImage = async (url: string): Promise<string> => {
 };
 
 export const downloadCertificate = async (name: string, category: Category) => {
-  // 1. Determine which background image to load (Now using .png)
   let imageUrl = "";
   if (category === "AI FOR STUDENTS") imageUrl = "/certificates/students.png";
   else if (category === "AI FOR ENTREPRENEURS") imageUrl = "/certificates/entrepreneurs.png";
@@ -22,7 +20,6 @@ export const downloadCertificate = async (name: string, category: Category) => {
 
   const imgData = await loadImage(imageUrl);
 
-  // 2. Create the PDF (A4 size, Landscape)
   const doc = new jsPDF({
     orientation: "landscape",
     unit: "mm",
@@ -30,30 +27,26 @@ export const downloadCertificate = async (name: string, category: Category) => {
   });
 
   // A4 Landscape dimensions: 297mm width x 210mm height
-  // Changed "JPEG" to "PNG" here!
   doc.addImage(imgData, "PNG", 0, 0, 297, 210);
 
-  // 3. Add the User's Name onto the blank line
+  // 1. Candidate Name (Centered over the underline at X = 82.5mm)
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(36);
-  doc.setTextColor(12, 20, 90); // Dark blue text
-  
-  // (297 / 2 = 148.5 which is the exact center of the page). 
-  // 112 is the Y-coordinate (height). 
-  doc.text(name.toUpperCase(), 148.5, 112, { align: "center" }); 
+  doc.setFontSize(32);
+  doc.setTextColor(12, 20, 90);
+  doc.text(name.toUpperCase(), 82.5, 112, { align: "center" });
 
-  // 4. Overwrite the hardcoded "SEPTEMBER 5TH, 2026" date
-  // Draw a white rectangle over the old date
+  // 2. White rectangle to block out the old hardcoded date "SEPTEMBER 5TH, 2026"
   doc.setFillColor(255, 255, 255);
-  // (X=40, Y=172, Width=70, Height=10) 
-  doc.rect(40, 172, 70, 10, "F"); 
+  // (X=28mm, Y=177mm, Width=80mm, Height=12mm)
+  doc.rect(28, 177, 80, 12, "F");
 
-  // 5. Write Today's Date
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(14);
+  // 3. Write Today's Date cleanly over the white box
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.setTextColor(12, 20, 90);
   const today = format(new Date(), "MMMM do, yyyy").toUpperCase();
-  doc.text(today, 75, 179, { align: "center" });
+  doc.text(today, 68, 184, { align: "center" });
 
-  // 6. Download the PDF!
+  // 4. Download PDF
   doc.save(`${name.replace(/\s+/g, "_")}_Alpha_Academy_Certificate.pdf`);
 };
