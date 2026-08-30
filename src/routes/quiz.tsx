@@ -5,6 +5,7 @@ import { downloadCertificate } from "@/lib/generate-certificate";
 import { Button } from "@/components/ui/button";
 import { BrandHeader } from "@/components/BrandHeader";
 
+// Note: If the file you found is a .lazy.tsx file, change "createFileRoute" to "createLazyFileRoute" in the import and below!
 export const Route = createFileRoute("/quiz")({
   component: QuizPage,
 });
