@@ -1,88 +1,237 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { loadCandidate } from "@/lib/assessment-session";
-import { downloadCertificate } from "@/lib/generate-certificate";
-import { Button } from "@/components/ui/button";
 import { BrandHeader } from "@/components/BrandHeader";
+import { Button } from "@/components/ui/button";
+import { loadCandidate, loadAnswers, saveAnswers, type AnswerMap } from "@/lib/assessment-session";
+import { downloadCertificate } from "@/lib/generate-certificate";
+import { studentQuestions } from "@/lib/questions/students";
+import type { Category } from "@/lib/assessment.functions";
 
-// Note: If the file you found is a .lazy.tsx file, change "createFileRoute" to "createLazyFileRoute" in the import and below!
 export const Route = createFileRoute("/quiz")({
   component: QuizPage,
 });
 
+const PASS_MARK = 16; // more than 50% of 30
+
 function QuizPage() {
   const navigate = useNavigate();
-  const [candidate, setCandidate] = useState<{ fullName: string; category: any } | null>(null);
+  const [candidate, setCandidate] = useState<{
+    fullName: string;
+    email: string;
+    category: Category;
+  } | null>(null);
+
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [answers, setAnswers] = useState<AnswerMap>({});
   const [score, setScore] = useState<number | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
+  // For now we only have Students questions ready
+  const questions = useMemo(() => {
+    if (!candidate) return [];
+    if (candidate.category === "AI FOR STUDENTS") return studentQuestions;
+    return [];
+  }, [candidate]);
+
   useEffect(() => {
-    // Load the candidate details we saved on the previous page
     const user = loadCandidate();
     if (!user) {
-      navigate({ to: "/assessment" }); // kick them back to start if no data
-    } else {
-      setCandidate(user);
+      navigate({ to: "/assessment" });
+      return;
     }
+    setCandidate(user);
+
+    // Load any previously saved answers
+    const saved = loadAnswers(user.category);
+    setAnswers(saved);
   }, [navigate]);
 
-  // A quick function to fake a passing score so we can test the certificate
-  const handleCompleteTestQuiz = () => {
-    setScore(18); // 18/30 is passing (>16)
+  if (!candidate) return null;
+
+  // If user selected a track that has no questions yet
+  if (questions.length === 0) {
+    return (
+      <div className="min-h-screen bg-background">
+        <BrandHeader subtitle={`${candidate.category} Assessment`} />
+        <main className="mx-auto max-w-2xl px-6 py-16 text-center space-y-4">
+          <h1 className="text-3xl font-bold">Questions coming soon</h1>
+          <p className="text-muted-foreground">
+            Real questions for <strong>{candidate.category}</strong> are not uploaded yet.
+            Please choose <strong>AI FOR STUDENTS</strong> for now.
+          </p>
+          <Button onClick={() => navigate({ to: "/assessment" })}>Back to registration</Button>
+        </main>
+      </div>
+    );
+  }
+
+  const question = questions[currentIndex];
+  const selected = answers[String(question.id)] ?? null;
+  const answeredCount = Object.values(answers).filter(Boolean).length;
+
+  const selectAnswer = (option: "A" | "B" | "C" | "D") => {
+    const next = { ...answers, [String(question.id)]: option };
+    setAnswers(next);
+    saveAnswers(candidate.category, next);
+  };
+
+  const goNext = () => {
+    if (currentIndex < questions.length - 1) setCurrentIndex((i) => i + 1);
+  };
+
+  const goPrev = () => {
+    if (currentIndex > 0) setCurrentIndex((i) => i - 1);
+  };
+
+  const submitQuiz = () => {
+    let correct = 0;
+    for (const q of questions) {
+      if (answers[String(q.id)] === q.correct) correct += 1;
+    }
+    setScore(correct);
   };
 
   const handleDownload = async () => {
-    if (!candidate) return;
+    if (!candidate || score === null || score < PASS_MARK) return;
     setIsGenerating(true);
     try {
       await downloadCertificate(candidate.fullName, candidate.category);
     } catch (error) {
-      console.error("Error generating certificate", error);
-      alert("Failed to generate certificate. Please ensure images are in the public/certificates folder.");
+      console.error(error);
+      alert("Failed to generate certificate. Please try again.");
     }
     setIsGenerating(false);
   };
 
-  if (!candidate) return null;
+  // RESULTS SCREEN
+  if (score !== null) {
+    const passed = score >= PASS_MARK;
 
+    return (
+      <div className="min-h-screen bg-background">
+        <BrandHeader subtitle={`${candidate.category} Results`} />
+        <main className="mx-auto max-w-2xl px-6 py-12 text-center">
+          <div className="space-y-6 rounded-2xl border bg-card p-8 shadow-sm">
+            <h1 className="font-display text-4xl font-bold text-primary">
+              {passed ? "Congratulations!" : "Keep Going"}
+            </h1>
+            <h2 className="text-2xl font-semibold">
+              You scored {score} / {questions.length}
+            </h2>
+            <p className="text-muted-foreground">
+              {passed
+                ? `You passed the ${candidate.category} assessment. Your certificate is ready.`
+                : `You need at least ${PASS_MARK}/30 to pass. Review the material and try again.`}
+            </p>
+
+            {passed ? (
+              <Button
+                onClick={handleDownload}
+                size="lg"
+                className="mt-4 text-lg px-8 py-6"
+                disabled={isGenerating}
+              >
+                {isGenerating ? "Generating PDF..." : "Download My Certificate"}
+              </Button>
+            ) : (
+              <Button
+                onClick={() => {
+                  setScore(null);
+                  setCurrentIndex(0);
+                }}
+                size="lg"
+                className="mt-4"
+              >
+                Retry Assessment
+              </Button>
+            )}
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // QUIZ SCREEN
   return (
     <div className="min-h-screen bg-background">
       <BrandHeader subtitle={`${candidate.category} Assessment`} />
-      
-      <main className="mx-auto max-w-2xl px-6 py-12 text-center">
-        {score === null ? (
-          // --- QUIZ VIEW ---
-          <div className="space-y-8 mt-10">
-            <h1 className="font-display text-3xl font-bold">Welcome, {candidate.fullName}!</h1>
-            <p className="text-muted-foreground">
-              You selected the <strong>{candidate.category}</strong> track. 
-              <br/>(This is a placeholder page. Click below to simulate completing and passing the assessment).
-            </p>
-            
-            <Button onClick={handleCompleteTestQuiz} size="lg" className="mt-8">
-              Simulate Passing Score (18/30)
-            </Button>
-          </div>
-        ) : (
-          // --- RESULTS VIEW ---
-          <div className="space-y-8 mt-10 p-10 border rounded-2xl bg-card shadow-sm">
-            <h1 className="font-display text-4xl font-bold text-primary">Congratulations!</h1>
-            <h2 className="text-2xl font-semibold">You scored {score} / 30</h2>
-            <p className="text-muted-foreground">
-              You successfully passed the {candidate.category} Masterclass. 
-              Your certificate of completion is ready.
-            </p>
 
-            <Button 
-              onClick={handleDownload} 
-              size="lg" 
-              className="mt-6 text-lg px-8 py-6"
-              disabled={isGenerating}
-            >
-              {isGenerating ? "Generating PDF..." : "Download My Certificate"}
-            </Button>
+      <main className="mx-auto max-w-3xl px-6 py-8">
+        {/* Progress */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
+            <span>
+              Question {currentIndex + 1} of {questions.length}
+            </span>
+            <span>
+              Answered {answeredCount}/{questions.length}
+            </span>
           </div>
-        )}
+          <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all"
+              style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
+            />
+          </div>
+        </div>
+
+        <div className="rounded-2xl border bg-card p-6 sm:p-8 shadow-sm space-y-6">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary mb-2">
+              {question.module}
+            </p>
+            <h1 className="font-display text-xl sm:text-2xl font-bold leading-snug">
+              {question.question}
+            </h1>
+          </div>
+
+          <div className="space-y-3">
+            {(["A", "B", "C", "D"] as const).map((key) => {
+              const active = selected === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => selectAnswer(key)}
+                  className={`w-full rounded-xl border p-4 text-left transition ${
+                    active
+                      ? "border-primary bg-primary/5 ring-2 ring-primary/30"
+                      : "border-border hover:border-primary/40 hover:bg-muted/40"
+                  }`}
+                >
+                  <span className="font-semibold mr-2">{key}.</span>
+                  {question.options[key]}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <Button variant="outline" onClick={goPrev} disabled={currentIndex === 0}>
+              Previous
+            </Button>
+
+            {currentIndex < questions.length - 1 ? (
+              <Button onClick={goNext} disabled={!selected} className="sm:ml-auto">
+                Next Question
+              </Button>
+            ) : (
+              <Button
+                onClick={submitQuiz}
+                disabled={answeredCount < questions.length}
+                className="sm:ml-auto"
+              >
+                Submit Assessment
+              </Button>
+            )}
+          </div>
+
+          {answeredCount < questions.length && currentIndex === questions.length - 1 && (
+            <p className="text-sm text-muted-foreground">
+              Please answer all {questions.length} questions before submitting.
+            </p>
+          )}
+        </div>
       </main>
     </div>
   );
