@@ -4,7 +4,7 @@ import { BrandHeader } from "@/components/BrandHeader";
 import { Button } from "@/components/ui/button";
 import { loadCandidate, loadAnswers, saveAnswers, type AnswerMap } from "@/lib/assessment-session";
 import { downloadCertificate } from "@/lib/generate-certificate";
-import { studentQuestions } from "@/lib/questions/students";
+import { studentQuestions } from "@/lib/students";
 import type { Category } from "@/lib/assessment.functions";
 
 export const Route = createFileRoute("/quiz")({
