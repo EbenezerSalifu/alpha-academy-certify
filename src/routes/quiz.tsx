@@ -94,7 +94,8 @@ function QuizPage() {
     if (!candidate || score === null || score < PASS_MARK) return;
     setIsGenerating(true);
     try {
-      await downloadCertificate(candidate.fullName, candidate.category);
+      // Updated to pass email address as well!
+      await downloadCertificate(candidate.fullName, candidate.category, candidate.email);
     } catch (error) {
       console.error(error);
       alert("Failed to generate certificate. Please try again.");
