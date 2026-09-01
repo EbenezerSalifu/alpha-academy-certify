@@ -52,9 +52,11 @@ function Landing() {
         <div className="absolute -bottom-32 -left-20 h-80 w-80 rounded-full bg-primary/40 blur-3xl" />
         <div className="relative mx-auto flex max-w-6xl flex-col gap-10 px-6 py-20 sm:py-28">
           <div className="flex items-center gap-3">
-            <span className="grid h-11 w-11 place-items-center rounded-xl bg-navy-foreground/10 font-display text-xl font-bold ring-1 ring-navy-foreground/20">
-              A
-            </span>
+            <img
+              src="/logo.png"
+              alt="Alpha Academy"
+              className="h-11 w-11 rounded-xl object-contain bg-navy-foreground/10 p-1 ring-1 ring-navy-foreground/20"
+            />
             <div className="leading-tight">
               <p className="font-display text-lg font-bold tracking-tight">ALPHA ACADEMY</p>
               <p className="text-[11px] uppercase tracking-[0.22em] text-navy-foreground/70">
