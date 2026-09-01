@@ -8,7 +8,7 @@ export function BrandHeader({ subtitle }: { subtitle?: string }) {
           <img
             src="/logo.png"
             alt="Alpha Academy"
-            className="h-10 w-10 rounded-lg object-contain bg-navy-foreground/10 p-1 ring-1 ring-navy-foreground/20"
+            className="h-10 w-auto object-contain"
           />
           <span className="leading-tight">
             <span className="block font-display text-sm font-bold tracking-tight">
