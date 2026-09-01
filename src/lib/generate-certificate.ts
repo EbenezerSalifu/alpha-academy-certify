@@ -2,44 +2,62 @@ import jsPDF from "jspdf";
 import { format } from "date-fns";
 import QRCode from "qrcode";
 import type { Category } from "./assessment.functions";
+import { supabase } from "./supabase";
 
-// Function that creates a unique ID like "AA-EBENSALI-K9X2P"
 const createUniqueCertId = (name: string): string => {
   const randomString = Math.random().toString(36).substring(2, 7).toUpperCase();
   const cleanName = name.replace(/[^a-zA-Z]/g, "").slice(0, 6).toUpperCase();
   return `AA-${cleanName}-${randomString}`;
 };
 
-export const downloadCertificate = async (name: string, category: Category) => {
-  // 1. Pick background image
+export const downloadCertificate = async (
+  name: string,
+  category: Category,
+  email?: string
+) => {
   let imageUrl = "";
   if (category === "AI FOR STUDENTS") imageUrl = "/certificates/students.png";
   else if (category === "AI FOR ENTREPRENEURS") imageUrl = "/certificates/entrepreneurs.png";
   else if (category === "AI FOR PROFESSIONALS") imageUrl = "/certificates/professionals.png";
 
-  const imgData = await fetch(imageUrl).then(res => res.blob()).then(blob => {
-    return new Promise<string>((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.readAsDataURL(blob);
-    });
-  });
+  const imgData = await fetch(imageUrl)
+    .then((res) => res.blob())
+    .then(
+      (blob) =>
+        new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(blob);
+        })
+    );
 
-  // 2. Create Unique Certificate ID & Link
   const certId = createUniqueCertId(name);
-  const verifyUrl = `https://alphaacademy.com/verify?id=${certId}`;
+  const websiteUrl = window.location.origin;
+  const verifyUrl = `${websiteUrl}/verify/${certId}`;
 
-  // 3. Convert that link into a QR Code image
+  // Save student record to Supabase database
+  try {
+    await supabase.from("certificates").insert({
+      id: certId,
+      full_name: name,
+      email: email || "",
+      category,
+      issued_at: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.warn("Could not save certificate record to database", err);
+  }
+
+  // Generate QR Code
   const qrDataUrl = await QRCode.toDataURL(verifyUrl, {
     width: 200,
     margin: 1,
     color: {
-      dark: "#0C145A", // Matching dark blue
+      dark: "#0C145A",
       light: "#FFFFFF",
     },
   });
 
-  // 4. Create the PDF
   const doc = new jsPDF({
     orientation: "landscape",
     unit: "mm",
@@ -55,7 +73,7 @@ export const downloadCertificate = async (name: string, category: Category) => {
   doc.setTextColor(12, 20, 90);
   doc.text(name.toUpperCase(), 82.5, 112, { align: "center" });
 
-  // Cover old hardcoded date with white rectangle
+  // Cover hardcoded date with white rectangle
   doc.setFillColor(255, 255, 255);
   doc.rect(28, 177, 80, 12, "F");
 
@@ -66,15 +84,15 @@ export const downloadCertificate = async (name: string, category: Category) => {
   const today = format(new Date(), "MMMM do, yyyy").toUpperCase();
   doc.text(today, 68, 184, { align: "center" });
 
-  // Add QR Code (Positioned between Date and Founder Signature)
-  const qrSize = 22; // 22mm x 22mm
+  // Add QR Code
+  const qrSize = 22;
   doc.addImage(qrDataUrl, "PNG", 137, 168, qrSize, qrSize);
 
-  // Write the Certificate ID text directly under the QR code
+  // Add Certificate ID under QR
   doc.setFontSize(7);
   doc.setTextColor(100, 100, 100);
   doc.text(`ID: ${certId}`, 148, 193, { align: "center" });
 
-  // Save the PDF
+  // Download PDF
   doc.save(`${name.replace(/\s+/g, "_")}_Alpha_Academy_Certificate.pdf`);
 };
